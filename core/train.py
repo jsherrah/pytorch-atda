@@ -68,11 +68,11 @@ def pre_train(F, F_1, F_2, F_t, source_data):
                               cfg.num_epochs_pre,
                               step + 1,
                               len(source_data),
-                              loss_F.data[0],
-                              loss_F_1.data[0],
-                              loss_F_2.data[0],
-                              loss_F_t.data[0],
-                              loss_similiar.data[0],
+                              loss_F.item(), #.data[0],
+                              loss_F_1.item(), #.data[0],
+                              loss_F_2.item(), #.data[0],
+                              loss_F_t.item(), #.data[0],
+                              loss_similiar.item(), #.data[0],
                               ))
 
         # save model
@@ -211,8 +211,8 @@ def domain_adapt(F, F_1, F_2, F_t,
                                   cfg.num_epochs_adapt,
                                   step + 1,
                                   len(merged_dataloader),
-                                  loss_labelling.data[0],
-                                  loss_F_t.data[0],
+                                  loss_labelling.item(), #.data[0],
+                                  loss_F_t.item(), #.data[0],
                                   ))
 
         # re-compute the number of selected taget data

@@ -5,7 +5,23 @@ it's called as `shared network` in the paper.
 
 import torch
 from torch import nn
+import torchvision.models as models
 
+
+class EncoderVGG(nn.Module):
+    """Use VGG as encoder"""
+
+    def __init__(self):
+        """Init encoder."""
+        super(EncoderVGG, self).__init__()
+        self.restored = False
+        self.encoder = models.__dict__['vgg16'](pretrained=True).features
+
+    def forward(self, x):
+        """Forward encoder."""
+        # x = expand_single_channel(x)
+        out = self.encoder(x)
+        return out.view(out.shape[0], out.shape[1:].numel())#768)
 
 class EncoderA(nn.Module):
     """Feature encoder class for MNIST -> MNIST-M experiment in ATDA."""
@@ -36,7 +52,7 @@ class EncoderA(nn.Module):
         """Forward encoder."""
         # x = expand_single_channel(x)
         out = self.encoder(x)
-        return out.view(-1, 768)
+        return out.view(out.shape[0], out.shape[1:].numel())#768)
 
 
 class EncoderB(nn.Module):

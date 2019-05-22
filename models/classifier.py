@@ -9,7 +9,7 @@ from torch import nn
 class ClassifierA(nn.Module):
     """Feature classifier class for MNIST -> MNIST-M experiment in ATDA."""
 
-    def __init__(self, dropout_keep=0.5, use_BN=True):
+    def __init__(self, nbClasses, dropout_keep=0.5, use_BN=True, inputSize = 768):
         """Init classifier."""
         super(ClassifierA, self).__init__()
 
@@ -20,25 +20,25 @@ class ClassifierA(nn.Module):
         if use_BN:
             self.classifier = nn.Sequential(
                 nn.Dropout(self.dropout_keep),
-                nn.Linear(768, 100),
+                nn.Linear(inputSize, 100),
                 nn.BatchNorm1d(100),
                 nn.ReLU(),
                 nn.Dropout(self.dropout_keep),
                 nn.Linear(100, 100),
                 nn.BatchNorm1d(100),
                 nn.ReLU(),
-                nn.Linear(100, 10),
+                nn.Linear(100, nbClasses),
                 nn.Softmax()
             )
         else:
             self.classifier = nn.Sequential(
                 nn.Dropout(self.dropout_keep),
-                nn.Linear(768, 100),
+                nn.Linear(inputSize, 100),
                 nn.ReLU(),
                 nn.Dropout(self.dropout_keep),
                 nn.Linear(100, 100),
                 nn.ReLU(),
-                nn.Linear(100, 10),
+                nn.Linear(100, nbClasses),
                 nn.Softmax()
             )
 
@@ -51,7 +51,7 @@ class ClassifierA(nn.Module):
 class ClassifierB(nn.Module):
     """Feature classifier class for MNIST -> SVHN experiment in ATDA."""
 
-    def __init__(self):
+    def __init__(self, nbClasses):
         """Init classifier."""
         super(ClassifierB, self).__init__()
 
@@ -60,7 +60,7 @@ class ClassifierB(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(3072, 2048),
             nn.ReLU(),
-            nn.Linear(2048, 10),
+            nn.Linear(2048, nbClasses),
             nn.Softmax()
         )
 
@@ -73,7 +73,7 @@ class ClassifierB(nn.Module):
 class ClassifierC(nn.Module):
     """Feature classifier class for SVHN -> MNIST or SYN Digits -> SVHN."""
 
-    def __init__(self, dropout_keep=0.5, use_BN=True):
+    def __init__(self, nbClasses, dropout_keep=0.5, use_BN=True):
         """Init classifier."""
         super(ClassifierA, self).__init__()
 
@@ -88,8 +88,8 @@ class ClassifierC(nn.Module):
                 nn.BatchNorm1d(2048),
                 nn.ReLU(),
                 nn.Dropout(self.dropout_keep),
-                nn.Linear(2048, 10),
-                nn.BatchNorm1d(10),
+                nn.Linear(2048, nbClasses),
+                nn.BatchNorm1d(nbClasses),
                 nn.Softmax()
             )
         else:
@@ -98,7 +98,7 @@ class ClassifierC(nn.Module):
                 nn.Linear(3072, 2048),
                 nn.ReLU(),
                 nn.Dropout(self.dropout_keep),
-                nn.Linear(2048, 10),
+                nn.Linear(2048, nbClasses),
                 nn.Softmax()
             )
 
