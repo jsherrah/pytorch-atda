@@ -1,7 +1,8 @@
 """Main script for ATDA."""
 
+import torch
 import torch.nn as nn
-from core import domain_adapt, genarate_labels, pre_train #, evaluate
+from core import domain_adapt, generate_labels, pre_train #, evaluate
 from misc import config as cfg
 from misc.utils import (enable_cudnn_benchmark, get_data_loader, init_model,
                         init_random_seed)
@@ -9,6 +10,7 @@ from models import ClassifierA, EncoderA, EncoderVGG
 
 import aimlTrainPytorch as atr
 import argparse
+import matplotlib.pyplot as plt
 
 def parseArgs():
     parser = argparse.ArgumentParser(description='Tri-training',
@@ -34,8 +36,22 @@ def parseArgs():
     return parser.parse_args()
 
 
+class CompositeModel:
+    def __init__(self, ftrs, clfr):
+        self.ftrs = ftrs
+        self.clfr = clfr
+
+    def eval(self):
+        self.ftrs.eval()
+        self.clfr.eval()
+
+    def __call__(self, x):
+        return self.clfr(self.ftrs(x))
+
 def evaluate(encoder, classifier, data_loader):
-    model = nn.Sequential(encoder, classifier)
+    # This works too
+    # model = nn.Sequential(encoder, classifier)
+    model = CompositeModel(encoder, classifier)
     criterion = nn.CrossEntropyLoss()
     atr.validate(data_loader, model, criterion, args, batchSilent=False)
 
@@ -44,6 +60,7 @@ if __name__ == '__main__':
     args = parseArgs()
     # init random seed
     init_random_seed(cfg.manual_seed)
+    torch.cuda.set_device(args.gpu)
 
     model_restore = {
         "F":   args.snapshotF,
@@ -57,13 +74,13 @@ if __name__ == '__main__':
 
     # load dataset
     if 0:
-        source_dataset = get_data_loader(cfg.source_dataset, get_dataset=True)
-        source_data_loader = get_data_loader(cfg.source_dataset)
+        source_dataset          = get_data_loader(cfg.source_dataset, get_dataset=True)
+        source_data_loader      = get_data_loader(cfg.source_dataset)
         source_data_loader_test = get_data_loader(cfg.source_dataset, train=False)
-        target_dataset = get_data_loader(cfg.target_dataset, get_dataset=True)
-        # target_data_loader = get_data_loader(cfg.target_dataset)
+        target_dataset          = get_data_loader(cfg.target_dataset, get_dataset=True)
+        # target_data_loader    = get_data_loader(cfg.target_dataset)
         target_data_loader_test = get_data_loader(cfg.target_dataset, train=False)
-        encsize = 4*4*48 # 768
+        encsize                 = 4*4*48 # 768
     else:
         imgsz, ccropsz = 256, 224
 #        imgsz, ccropsz = 28, 28
@@ -80,6 +97,11 @@ if __name__ == '__main__':
         source_dataset = source_data_loader.dataset
         target_dataset = target_data_loader.dataset
         encsize = 7*7*512
+
+    if 0:
+        plt.figure()
+        atr.showDataSet(target_data_loader_test)
+        plt.waitforbuttonpress()
 
     # init models
     #!! F = init_model(net=EncoderA(), restore=model_restore["F"])
@@ -102,8 +124,8 @@ if __name__ == '__main__':
     print(F_t)
 
     # pre-train on source dataset
-    print("=== Pre-train networks ===")
     if args.pretrain:
+        print("=== Pre-train networks ===")
         pre_train(F, F_1, F_2, F_t, source_data_loader)
         print(">>> evaluate F+F_1")
         evaluate(F, F_1, source_data_loader_test)
@@ -112,13 +134,13 @@ if __name__ == '__main__':
         print(">>> evaluate F+F_t")
         evaluate(F, F_t, source_data_loader_test)
 
-    print("=== Adapt F_t ===")
     if args.domainAdapt:
+        print("=== Adapt F_t ===")
         # generate pseudo labels on target dataset
         print("--- Generate Pseudo Label ---")
         excerpt, pseudo_labels = \
-            genarate_labels(F, F_1, F_2, target_dataset, cfg.num_target_init)
-        print(">>> Genrate pseudo labels {}".format(
+            generate_labels(F, F_1, F_2, target_dataset, cfg.num_target_init, useWeightedSampling=True)
+        print(">>> Generate pseudo labels {}".format(
             len(pseudo_labels)))
 
         # domain adapt between source and target datasets
@@ -127,5 +149,11 @@ if __name__ == '__main__':
                      source_dataset, target_dataset, excerpt, pseudo_labels)
 
     # test F_t on target test dataset
-    print("=== Test F_t ===")
+    print("=== Test F_t on target ===")
     evaluate(F, F_t, target_data_loader_test)
+    print(">>> evaluate F+F_1 on target")
+    evaluate(F, F_1, target_data_loader_test)
+    print(">>> evaluate F+F_2 on target")
+    evaluate(F, F_2, target_data_loader_test)
+#    print(">>> evaluate F+F_t on source")
+#    evaluate(F, F_t, source_data_loader_test)

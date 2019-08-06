@@ -269,4 +269,6 @@ def guess_pseudo_labels(out_1, out_2, threshold=0.9):
     pseudo_labels = pred_idx
     excerpt = equal_idx[filtered_idx]
 
+    assert np.all(np.logical_and(excerpt>= 0, excerpt < out_1.shape[0]))
+
     return excerpt, pseudo_labels

@@ -18,11 +18,12 @@ class DummyDataset(data.Dataset):
         self.dataset = original_dataset
         self.excerpt = excerpt
         self.pseudo_labels = pseudo_labels
+        self.classes = original_dataset.classes
 
     def __getitem__(self, index):
         """Get images and target for data loader."""
         images, _ = self.dataset[self.excerpt[index]]
-        return images, self.pseudo_labels[index]
+        return images, self.pseudo_labels[index].item()
 
     def __len__(self):
         """Return size of dataset."""
