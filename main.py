@@ -32,6 +32,7 @@ def parseArgs():
     parser.add_argument('-p', '--print-freq', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
 
+    parser.add_argument('--plot', action='store_true', help='Plot some stuff during training')
 
     return parser.parse_args()
 
@@ -87,8 +88,10 @@ if __name__ == '__main__':
         source_data_loader, source_data_loader_test, _ = atr.loadDataSets( args,
                                                                            pathAttrName='dataSource',
                                                                            distributed=False,
+                                                                           plot=args.plot,
                                                                            imgSz=imgsz,
-                                                                           ccropSz=ccropsz )
+                                                                           ccropSz=ccropsz,
+                                                                           randomResizedCrop=True)
         target_data_loader, target_data_loader_test, _ = atr.loadDataSets( args,
                                                                            pathAttrName='dataTarget',
                                                                            distributed=False,
@@ -126,13 +129,7 @@ if __name__ == '__main__':
     # pre-train on source dataset
     if args.pretrain:
         print("=== Pre-train networks ===")
-        pre_train(F, F_1, F_2, F_t, source_data_loader)
-        print(">>> evaluate F+F_1")
-        evaluate(F, F_1, source_data_loader_test)
-        print(">>> evaluate F+F_2")
-        evaluate(F, F_2, source_data_loader_test)
-        print(">>> evaluate F+F_t")
-        evaluate(F, F_t, source_data_loader_test)
+        pre_train(F, F_1, F_2, F_t, source_data_loader, args.plot)
 
     if args.domainAdapt:
         print("=== Adapt F_t ===")
@@ -148,7 +145,23 @@ if __name__ == '__main__':
         domain_adapt(F, F_1, F_2, F_t,
                      source_dataset, target_dataset, excerpt, pseudo_labels)
 
-    # test F_t on target test dataset
+    print(">>> evaluate F+F_1 on source test set")
+    evaluate(F, F_1, source_data_loader_test)
+    print(">>> evaluate F+F_2 on source test set")
+    evaluate(F, F_2, source_data_loader_test)
+    print(">>> evaluate F+F_t on source test set")
+    evaluate(F, F_t, source_data_loader_test)
+    print('\n\n\n')
+
+    print(">>> evaluate F+F_1 on source training set")
+    evaluate(F, F_1, source_data_loader)
+    print(">>> evaluate F+F_2 on source training set")
+    evaluate(F, F_2, source_data_loader)
+    print(">>> evaluate F+F_t on source training set")
+    evaluate(F, F_t, source_data_loader)
+    print('\n\n\n')
+
+     # test F_t on target test dataset
     print("=== Test F_t on target ===")
     evaluate(F, F_t, target_data_loader_test)
     print(">>> evaluate F+F_1 on target")

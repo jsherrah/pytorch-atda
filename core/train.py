@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import aimlTrainPytorch as atr
 import numpy as np
 
-def pre_train(F, F_1, F_2, F_t, source_data):
+def pre_train(F, F_1, F_2, F_t, source_data, plot):
     """Pre-train models on source domain dataset."""
     # set train state for Dropout and BN layers
     F.train()
@@ -28,6 +28,8 @@ def pre_train(F, F_1, F_2, F_t, source_data):
     optimizer_F_1 = get_optimizer(F_1, "Adam")
     optimizer_F_2 = get_optimizer(F_2, "Adam")
     optimizer_F_t = get_optimizer(F_t, "Adam")
+
+    losses = []
 
     # start training
     for epoch in range(cfg.num_epochs_pre):
@@ -62,6 +64,8 @@ def pre_train(F, F_1, F_2, F_t, source_data):
             optimizer_F_2.step()
             optimizer_F_t.step()
 
+            losses.append(loss_F.item())
+
             # print step info
             if ((step + 1) % cfg.log_step == 0):
                 print("Epoch [{}/{}] Step[{}/{}] Loss("
@@ -91,6 +95,29 @@ def pre_train(F, F_1, F_2, F_t, source_data):
     save_model(F_2, "pretrain-F_2-final.pt")
     save_model(F_t, "pretrain-F_t-final.pt")
 
+    if plot:
+        plt.figure()
+        plt.plot(losses)
+        plt.grid(1)
+        plt.title('Loss for pre-training')
+        plt.waitforbuttonpress()
+
+class SubsetSampler(torch.utils.data.Sampler):
+    r"""Samples elements from a given list of indices, without replacement.
+
+    Arguments:
+        indices (sequence): a sequence of indices
+    """
+
+    def __init__(self, indices):
+        self.indices = indices
+
+    def __iter__(self):
+        return (z for z in self.indices)
+
+    def __len__(self):
+        return len(self.indices)
+
 
 # Returns excerpt, index into target_dataset.
 def generate_labels(F, F_1, F_2, target_dataset, num_target, useWeightedSampling=False):
@@ -112,15 +139,29 @@ def generate_labels(F, F_1, F_2, target_dataset, num_target, useWeightedSampling
         target_sampler = torch.utils.data.sampler.WeightedRandomSampler( sampleWeights,
                                                                          num_target,
                                                                         replacement=True )
-        data_loader = make_data_loader(target_dataset, sampler=target_sampler, shuffle=False)
+        #data_loader = make_data_loader(target_dataset, sampler=target_sampler, shuffle=False)
     else:
-        data_loader = get_sampled_data_loader(target_dataset,
-                                              num_target, shuffle=True)
+        dummy = get_sampled_data_loader(target_dataset, num_target, shuffle=True)
+        target_sampler = dummy.sampler
+
+    # Use this sampler to select out the indices we want.
+    targetIndices = [z for z in target_sampler]
+
+    # Make a subset random dampler and data loader.
+    sampler = SubsetSampler(targetIndices)
+    data_loader = torch.utils.data.DataLoader(
+        dataset=target_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        sampler=sampler)
+
 
     # get output of F_1 and F_2 on sampled target dataset
     out_F_1_total = None
     out_F_2_total = None
-    for step, (images, _) in enumerate(data_loader):
+    gtTotal = None
+
+    for step, (images, gt) in enumerate(data_loader):
         # convert into torch.autograd.Variable
         images = make_variable(images)
         # forward networks
@@ -132,15 +173,29 @@ def generate_labels(F, F_1, F_2, target_dataset, num_target, useWeightedSampling
         if step == 0:
             out_F_1_total = out_F_1.data.cpu()
             out_F_2_total = out_F_2.data.cpu()
+            gtTotal = gt.data.cpu()
         else:
             out_F_1_total = torch.cat(
                 [out_F_1_total, out_F_1.data.cpu()], 0)
             out_F_2_total = torch.cat(
                 [out_F_2_total, out_F_2.data.cpu()], 0)
+            gtTotal = torch.cat([gtTotal, gt.data.cpu()])
+
+    print('gt type = {}, val = {}'.format(type(gtTotal), gtTotal))
 
     # guess pseudo labels
     excerpt, pseudo_labels = \
         guess_pseudo_labels(out_F_1_total, out_F_2_total)
+
+    #print('pl shape before = {}'.format(pseudo_labels.shape))
+    if 0:
+        # Using GT labels shows these are correct.  The problem is that the labels from guess function are
+        # not correct.
+        pseudo_labels = torch.tensor([gtTotal[z] for z in excerpt])
+        #print('pl shape after = {}'.format(pseudo_labels.shape))
+
+    # Convert these indices into the subset into indices into target dataset.
+    excerpt = np.array([targetIndices[i] for i in excerpt])
 
     assert len(excerpt) <= num_target
     assert np.all(np.logical_and(excerpt>= 0, excerpt < len(target_dataset)))

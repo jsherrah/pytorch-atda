@@ -3,6 +3,7 @@
 import os
 import random
 from math import log
+import numpy as np
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -241,6 +242,10 @@ def get_sampled_data_loader(dataset, candidates_num, shuffle=True):
 
 def guess_pseudo_labels(out_1, out_2, threshold=0.9):
     """Guess labels of target dataset by the two outputs."""
+    assert out_1.shape == out_2.shape
+    print('out_1/2 shape = {}'.format(out_1.shape))
+    N = out_1.shape[0]
+
     # get prediction
     _, pred_idx_1 = torch.max(out_1, 1)
     _, pred_idx_2 = torch.max(out_2, 1)
@@ -269,6 +274,7 @@ def guess_pseudo_labels(out_1, out_2, threshold=0.9):
     pseudo_labels = pred_idx
     excerpt = equal_idx[filtered_idx]
 
-    assert np.all(np.logical_and(excerpt>= 0, excerpt < out_1.shape[0]))
+    print(type(excerpt))
+    assert torch.all((excerpt>= 0) & (excerpt < N)), 'Excerpt = {} out of range [0, {}]'.format(excerpt, N)
 
     return excerpt, pseudo_labels
