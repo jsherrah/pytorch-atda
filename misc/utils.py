@@ -64,10 +64,11 @@ def enable_cudnn_benchmark():
         cudnn.benchmark = True
 
 
-def init_model(net, restore):
+def init_model(net, restore, randomInitialWeights=True):
     """Init models with cuda and weights."""
     # init weights of model
-    net.apply(init_weights)
+    if randomInitialWeights:
+        net.apply(init_weights)
 
     # restore model weights
     restore_model(net, restore)
@@ -103,7 +104,11 @@ def get_optimizer(net, name="Adam"):
         return optim.Adam(net.parameters(),
                           lr=cfg.learning_rate,
                           betas=(cfg.beta1, cfg.beta2))
-
+    elif name == "sgd":
+        return optim.SGD(net.parameters(),
+                         lr=cfg.learning_rate,
+                         momentum=cfg.momentum,
+                         weight_decay=cfg.weight_decay)
 
 def get_data_loader(name, train=True, get_dataset=False):
     """Get data loader by name."""

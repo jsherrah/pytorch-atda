@@ -41,8 +41,8 @@ dropout_keep = {
 
 # params for training network
 num_gpu = 1
-#num_epochs_pre = 20
-num_epochs_pre = 3
+num_epochs_pre = 20
+#!!num_epochs_pre = 2
 num_epochs_adapt = 5
 num_epochs_k = 100
 #num_target_init = 5000
@@ -56,6 +56,10 @@ model_root = "snapshots"
 eval_only = False
 
 # params for optimizing models
-learning_rate = 1e-4
+#!! learning_rate = 1e-4
+learning_rate = 1e-3
 beta1 = 0.9
 beta2 = 0.999
+
+momentum=0.9
+weight_decay=1.0E-4

@@ -6,11 +6,12 @@ from core import domain_adapt, generate_labels, pre_train #, evaluate
 from misc import config as cfg
 from misc.utils import (enable_cudnn_benchmark, get_data_loader, init_model,
                         init_random_seed)
-from models import ClassifierA, EncoderA, EncoderVGG
+from models import ClassifierA, EncoderA, EncoderVGG, ClassifierVGG
 
 import aimlTrainPytorch as atr
 import argparse
 import matplotlib.pyplot as plt
+from torchsummary import summary
 
 def parseArgs():
     parser = argparse.ArgumentParser(description='Tri-training',
@@ -107,18 +108,42 @@ if __name__ == '__main__':
         plt.waitforbuttonpress()
 
     # init models
+    riw = False  # don't random init, we want the vgg pre-trained weights
     #!! F = init_model(net=EncoderA(), restore=model_restore["F"])
-    F = init_model(net=EncoderVGG(), restore=model_restore["F"])
-    F_1 = init_model(net=ClassifierA(cfg.num_classes, cfg.dropout_keep["F_1"], inputSize=encsize),
-                     restore=model_restore["F_1"])
-    F_2 = init_model(net=ClassifierA(cfg.num_classes, cfg.dropout_keep["F_2"], inputSize=encsize),
-                     restore=model_restore["F_2"])
-    F_t = init_model(net=ClassifierA(cfg.num_classes, cfg.dropout_keep["F_t"], inputSize=encsize),
-                     restore=model_restore["F_t"])
+    F = init_model(net=EncoderVGG(), restore=model_restore["F"], randomInitialWeights=riw)
+
+    #!! and flatten in train.py
+    if 0:
+        tmp = atr.createModel(True, 'vgg16', cfg.num_classes)
+        tmp.cuda()
+        F = tmp.features
+        # doe snothing  F.append(nn.AdaptiveAvgPool2d((7, 7)))
+
+    useBN = True
+    if 0:
+        # Use VGG
+        riw = False
+        F_1 = init_model(net=ClassifierVGG(cfg.num_classes, cfg.dropout_keep["F_1"], use_BN=useBN, inputSize=encsize),
+                         restore=model_restore["F_1"], randomInitialWeights=riw)
+        F_2 = init_model(net=ClassifierVGG(cfg.num_classes, cfg.dropout_keep["F_2"], use_BN=useBN, inputSize=encsize),
+                         restore=model_restore["F_2"], randomInitialWeights=riw)
+        F_t = init_model(net=ClassifierVGG(cfg.num_classes, cfg.dropout_keep["F_t"], use_BN=useBN, inputSize=encsize),
+                         restore=model_restore["F_t"], randomInitialWeights=riw)
+    else:
+        # Use original
+        riw = True
+        F_1 = init_model(net=ClassifierA(cfg.num_classes, cfg.dropout_keep["F_1"], use_BN=useBN, inputSize=encsize),
+                         restore=model_restore["F_1"], randomInitialWeights=riw)
+        F_2 = init_model(net=ClassifierA(cfg.num_classes, cfg.dropout_keep["F_2"], use_BN=useBN, inputSize=encsize),
+                         restore=model_restore["F_2"], randomInitialWeights=riw)
+        F_t = init_model(net=ClassifierA(cfg.num_classes, cfg.dropout_keep["F_t"], use_BN=useBN, inputSize=encsize),
+                         restore=model_restore["F_t"], randomInitialWeights=riw)
 
     # show model structure
     print(">>> F model <<<")
     print(F)
+    summary(F, (3, 224, 224))
+
     print(">>> F_1 model <<<")
     print(F_1)
     print(">>> F_2 model <<<")
@@ -153,14 +178,6 @@ if __name__ == '__main__':
     evaluate(F, F_t, source_data_loader_test)
     print('\n\n\n')
 
-    print(">>> evaluate F+F_1 on source training set")
-    evaluate(F, F_1, source_data_loader)
-    print(">>> evaluate F+F_2 on source training set")
-    evaluate(F, F_2, source_data_loader)
-    print(">>> evaluate F+F_t on source training set")
-    evaluate(F, F_t, source_data_loader)
-    print('\n\n\n')
-
      # test F_t on target test dataset
     print("=== Test F_t on target ===")
     evaluate(F, F_t, target_data_loader_test)
@@ -170,3 +187,12 @@ if __name__ == '__main__':
     evaluate(F, F_2, target_data_loader_test)
 #    print(">>> evaluate F+F_t on source")
 #    evaluate(F, F_t, source_data_loader_test)
+
+    # evaluate source training set
+    print(">>> evaluate F+F_1 on source training set")
+    evaluate(F, F_1, source_data_loader)
+    print(">>> evaluate F+F_2 on source training set")
+    evaluate(F, F_2, source_data_loader)
+    print(">>> evaluate F+F_t on source training set")
+    evaluate(F, F_t, source_data_loader)
+    print('\n\n\n')

@@ -22,6 +22,7 @@ class EncoderVGG(nn.Module):
         # x = expand_single_channel(x)
         out = self.encoder(x)
         return out.view(out.shape[0], out.shape[1:].numel())#768)
+        #return torch.flatten(out,1)
 
 class EncoderA(nn.Module):
     """Feature encoder class for MNIST -> MNIST-M experiment in ATDA."""

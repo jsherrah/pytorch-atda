@@ -14,6 +14,11 @@ import matplotlib.pyplot as plt
 import aimlTrainPytorch as atr
 import numpy as np
 
+def adjustLearningRate(optimizer, learning_rate, epoch, num_epochs):
+    lr = learning_rate * (0.1 ** (epoch // 8))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 def pre_train(F, F_1, F_2, F_t, source_data, plot):
     """Pre-train models on source domain dataset."""
     # set train state for Dropout and BN layers
@@ -24,15 +29,29 @@ def pre_train(F, F_1, F_2, F_t, source_data, plot):
 
     # set criterion for classifier and optimizers
     criterion = nn.CrossEntropyLoss()
-    optimizer_F = get_optimizer(F, "Adam")
-    optimizer_F_1 = get_optimizer(F_1, "Adam")
-    optimizer_F_2 = get_optimizer(F_2, "Adam")
-    optimizer_F_t = get_optimizer(F_t, "Adam")
+    if 0:
+        optimType = "Adam"
+        cfg.learning_rate = 1.0E-4
+    else:
+        optimType = "sgd"
+        cfg.learning_rate = 1.0E-3
+    optimizer_F = get_optimizer(F,     optimType)
+    optimizer_F_1 = get_optimizer(F_1, optimType)
+    optimizer_F_2 = get_optimizer(F_2, optimType)
+    optimizer_F_t = get_optimizer(F_t, optimType)
 
     losses = []
 
+    if plot:
+        plt.figure()
+
     # start training
     for epoch in range(cfg.num_epochs_pre):
+        adjustLearningRate(optimizer_F, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+        adjustLearningRate(optimizer_F_1, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+        adjustLearningRate(optimizer_F_2, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+        adjustLearningRate(optimizer_F_t, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+
         for step, (images, labels) in enumerate(source_data):
             # convert into torch.autograd.Variable
             images = make_variable(images)
@@ -46,16 +65,21 @@ def pre_train(F, F_1, F_2, F_t, source_data, plot):
 
             # forward networks
             out_F = F(images)
+
+            #!!
+            #out_F = torch.flatten(out_F,1)
+
             out_F_1 = F_1(out_F)
             out_F_2 = F_2(out_F)
             out_F_t = F_t(out_F)
+
 
             # compute loss
             loss_similiar = calc_similiar_penalty(F_1, F_2)
             loss_F_1 = criterion(out_F_1, labels)
             loss_F_2 = criterion(out_F_2, labels)
             loss_F_t = criterion(out_F_t, labels)
-            loss_F = loss_F_1 + loss_F_2 + loss_F_t + loss_similiar
+            loss_F = loss_F_1 + loss_F_2 + loss_F_t + 0.03 * loss_similiar
             loss_F.backward()
 
             # optimize
@@ -71,6 +95,7 @@ def pre_train(F, F_1, F_2, F_t, source_data, plot):
                 print("Epoch [{}/{}] Step[{}/{}] Loss("
                       "Total={:.5f} F_1={:.5f} F_2={:.5f} "
                       "F_t={:.5f} sim={:.5f})"
+#!!                      "F_t={:.5f})"
                       .format(epoch + 1,
                               cfg.num_epochs_pre,
                               step + 1,
@@ -81,6 +106,13 @@ def pre_train(F, F_1, F_2, F_t, source_data, plot):
                               loss_F_t.item(), #.data[0],
                               loss_similiar.item(), #.data[0],
                               ))
+
+                if plot:
+                    plt.clf()
+                    plt.plot(losses)
+                    plt.grid(1)
+                    plt.title('Loss for pre-training')
+                    plt.waitforbuttonpress(0.0001)
 
         # save model
         if ((epoch + 1) % cfg.save_step == 0):
@@ -95,12 +127,6 @@ def pre_train(F, F_1, F_2, F_t, source_data, plot):
     save_model(F_2, "pretrain-F_2-final.pt")
     save_model(F_t, "pretrain-F_t-final.pt")
 
-    if plot:
-        plt.figure()
-        plt.plot(losses)
-        plt.grid(1)
-        plt.title('Loss for pre-training')
-        plt.waitforbuttonpress()
 
 class SubsetSampler(torch.utils.data.Sampler):
     r"""Samples elements from a given list of indices, without replacement.
