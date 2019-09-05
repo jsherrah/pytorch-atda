@@ -168,7 +168,7 @@ if __name__ == '__main__':
         # domain adapt between source and target datasets
         print("--- Domain Adapt ---")
         domain_adapt(F, F_1, F_2, F_t,
-                     source_dataset, target_dataset, excerpt, pseudo_labels)
+                     source_dataset, target_dataset, excerpt, pseudo_labels, args.plot)
 
     print(">>> evaluate F+F_1 on source test set")
     evaluate(F, F_1, source_data_loader_test)
@@ -195,4 +195,12 @@ if __name__ == '__main__':
     evaluate(F, F_2, source_data_loader)
     print(">>> evaluate F+F_t on source training set")
     evaluate(F, F_t, source_data_loader)
+    print('\n\n\n')
+
+    print(">>> evaluate F+F_1 on target training set")
+    evaluate(F, F_1, target_data_loader)
+    print(">>> evaluate F+F_2 on target training set")
+    evaluate(F, F_2, target_data_loader)
+    print(">>> evaluate F+F_t on target training set")
+    evaluate(F, F_t, target_data_loader)
     print('\n\n\n')

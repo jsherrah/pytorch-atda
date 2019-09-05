@@ -47,10 +47,11 @@ def pre_train(F, F_1, F_2, F_t, source_data, plot):
 
     # start training
     for epoch in range(cfg.num_epochs_pre):
-        adjustLearningRate(optimizer_F, cfg.learning_rate, epoch, cfg.num_epochs_pre)
-        adjustLearningRate(optimizer_F_1, cfg.learning_rate, epoch, cfg.num_epochs_pre)
-        adjustLearningRate(optimizer_F_2, cfg.learning_rate, epoch, cfg.num_epochs_pre)
-        adjustLearningRate(optimizer_F_t, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+        if optimType == 'sgd':
+            adjustLearningRate(optimizer_F, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+            adjustLearningRate(optimizer_F_1, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+            adjustLearningRate(optimizer_F_2, cfg.learning_rate, epoch, cfg.num_epochs_pre)
+            adjustLearningRate(optimizer_F_t, cfg.learning_rate, epoch, cfg.num_epochs_pre)
 
         for step, (images, labels) in enumerate(source_data):
             # convert into torch.autograd.Variable
@@ -232,14 +233,20 @@ def generate_labels(F, F_1, F_2, target_dataset, num_target, useWeightedSampling
 
 def domain_adapt(F, F_1, F_2, F_t,
                  source_dataset, target_dataset,
-                 excerpt, pseudo_labels):
+                 excerpt, pseudo_labels, plot):
     """Perform Doamin Adaptation between source and target domains."""
     # set criterion for classifier and optimizers
     criterion = nn.CrossEntropyLoss()
-    optimizer_F = get_optimizer(F, "Adam")
-    optimizer_F_1 = get_optimizer(F_1, "Adam")
-    optimizer_F_2 = get_optimizer(F_2, "Adam")
-    optimizer_F_t = get_optimizer(F_t, "Adam")
+    if 0:
+        optimType = "Adam"
+        cfg.learning_rate = 1.0E-4
+    else:
+        optimType = "sgd"
+        cfg.learning_rate = 1.0E-4
+    optimizer_F =   get_optimizer(F,   optimType)
+    optimizer_F_1 = get_optimizer(F_1, optimType)
+    optimizer_F_2 = get_optimizer(F_2, optimType)
+    optimizer_F_t = get_optimizer(F_t, optimType)
 
     # get labelled target dataset
     print('pseudo_labels = %s' % str(pseudo_labels))
@@ -253,12 +260,16 @@ def domain_adapt(F, F_1, F_2, F_t,
     print('target_dataset_labelled = %d' % len(target_dataset_labelled))
 
     # start training
+    plt.figure()
+
     for k in range(cfg.num_epochs_k):
         # set train state for Dropout and BN layers
         F.train()
         F_1.train()
         F_2.train()
         F_t.train()
+
+        losses = []
 
         merged_dataloader = make_data_loader(merged_dataset)
         target_dataloader_labelled = make_data_loader(target_dataset_labelled)
@@ -280,6 +291,12 @@ def domain_adapt(F, F_1, F_2, F_t,
             sys.exit(0)
 
         for epoch in range(cfg.num_epochs_adapt):
+            if optimType == 'sgd':
+                adjustLearningRate(optimizer_F,   cfg.learning_rate, epoch, cfg.num_epochs_adapt)
+                adjustLearningRate(optimizer_F_1, cfg.learning_rate, epoch, cfg.num_epochs_adapt)
+                adjustLearningRate(optimizer_F_2, cfg.learning_rate, epoch, cfg.num_epochs_adapt)
+                adjustLearningRate(optimizer_F_t, cfg.learning_rate, epoch, cfg.num_epochs_adapt)
+
             for step, rez in enumerate(merged_dataloader):
                 #!!print('rez = %s' % rez)
                 images, labels = rez
@@ -319,7 +336,7 @@ def domain_adapt(F, F_1, F_2, F_t,
                 loss_similiar = calc_similiar_penalty(F_1, F_2)
                 loss_F_1 = criterion(out_F_1, labels)
                 loss_F_2 = criterion(out_F_2, labels)
-                loss_labelling = loss_F_1 + loss_F_2 + loss_similiar
+                loss_labelling = loss_F_1 + loss_F_2 + 0.03 * loss_similiar
                 loss_labelling.backward()
 
                 # compute target specific loss
@@ -331,6 +348,8 @@ def domain_adapt(F, F_1, F_2, F_t,
                 optimizer_F_1.step()
                 optimizer_F_2.step()
                 optimizer_F_t.step()
+
+                losses.append(loss_F_t.item())
 
                 # print step info
                 if ((step + 1) % cfg.log_step == 0):
@@ -346,6 +365,15 @@ def domain_adapt(F, F_1, F_2, F_t,
                                   loss_F_t.item(), #.data[0],
                                   ))
                 #!!print('end of loop')
+
+                    if plot:
+                        plt.clf()
+                        plt.plot(losses)
+                        plt.grid(1)
+                        plt.title('Loss for domain adaptation, k = {}/{}, epoch = {}/{}'.format(
+                            k, cfg.num_epochs_k, epoch, cfg.num_epochs_adapt
+                        ))
+                        plt.waitforbuttonpress(0.0001)
 
         # re-compute the number of selected taget data
         num_target = (k + 2) * len(source_dataset) // 20
